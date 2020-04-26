@@ -59,6 +59,15 @@ public abstract class SingleThreadEventLoop extends SingleThreadEventExecutor im
         tailTasks = newTaskQueue(maxPendingTasks);
     }
 
+    /**
+     *
+     * @param parent                    执行器组
+     * @param executor                  线程池
+     * @param addTaskWakesUp            任务添加是否唤醒
+     * @param taskQueue                 任务队列
+     * @param tailTaskQueue             尾部任务队列
+     * @param rejectedExecutionHandler  线程池拒绝策略
+     */
     protected SingleThreadEventLoop(EventLoopGroup parent, Executor executor,
                                     boolean addTaskWakesUp, Queue<Runnable> taskQueue, Queue<Runnable> tailTaskQueue,
                                     RejectedExecutionHandler rejectedExecutionHandler) {
@@ -84,6 +93,7 @@ public abstract class SingleThreadEventLoop extends SingleThreadEventExecutor im
     @Override
     public ChannelFuture register(final ChannelPromise promise) {
         ObjectUtil.checkNotNull(promise, "promise");
+        //
         promise.channel().unsafe().register(this, promise);
         return promise;
     }

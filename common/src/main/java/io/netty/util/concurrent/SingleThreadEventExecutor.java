@@ -161,14 +161,30 @@ public abstract class SingleThreadEventExecutor extends AbstractScheduledEventEx
         rejectedExecutionHandler = ObjectUtil.checkNotNull(rejectedHandler, "rejectedHandler");
     }
 
+    /**
+     *
+     * @param parent            事件轮询器组
+     * @param executor          （线程池）执行器
+     * @param addTaskWakesUp    任务添加是否唤醒
+     * @param taskQueue         EventLoop的任务队列
+     * @param rejectedHandler   拒绝策略
+     */
     protected SingleThreadEventExecutor(EventExecutorGroup parent, Executor executor,
                                         boolean addTaskWakesUp, Queue<Runnable> taskQueue,
                                         RejectedExecutionHandler rejectedHandler) {
         super(parent);
         this.addTaskWakesUp = addTaskWakesUp;
+
+        // 通过配置 io.netty.eventexecutor.maxPendingTasks 来设置EventLoop的任务队列最大等待容量
         this.maxPendingTasks = DEFAULT_MAX_PENDING_EXECUTOR_TASKS;
+
+        // 创建一个新的线程池用于创建一个带有任务/事件轮询器并保证EventLoop - Thread能够一一对应的任务
         this.executor = ThreadExecutorMap.apply(executor, this);
+
+        // 任务队列
         this.taskQueue = ObjectUtil.checkNotNull(taskQueue, "taskQueue");
+
+        // 拒绝策略
         this.rejectedExecutionHandler = ObjectUtil.checkNotNull(rejectedHandler, "rejectedHandler");
     }
 
@@ -824,9 +840,12 @@ public abstract class SingleThreadEventExecutor extends AbstractScheduledEventEx
     }
 
     private void execute(Runnable task, boolean immediate) {
+        // 判断当前执行的线程是否与eventloop对应(EventLoop - Thread绑定一起）
         boolean inEventLoop = inEventLoop();
+        // 将任务添加到队列中,如果队列满则丢弃当前任务
         addTask(task);
         if (!inEventLoop) {
+            // 启动一个线程
             startThread();
             if (isShutdown()) {
                 boolean reject = false;
@@ -939,6 +958,9 @@ public abstract class SingleThreadEventExecutor extends AbstractScheduledEventEx
 
     private static final long SCHEDULE_PURGE_INTERVAL = TimeUnit.SECONDS.toNanos(1);
 
+    /**
+     * 判断状态，如果当前EventLoop持有的线程已经开启,则直接跳过
+     */
     private void startThread() {
         if (state == ST_NOT_STARTED) {
             if (STATE_UPDATER.compareAndSet(this, ST_NOT_STARTED, ST_STARTED)) {
@@ -973,8 +995,12 @@ public abstract class SingleThreadEventExecutor extends AbstractScheduledEventEx
         return false;
     }
 
+    /**
+     *
+     */
     private void doStartThread() {
         assert thread == null;
+        // 利用EventLoop的执行器创建FastThreadlocalThread的线程
         executor.execute(new Runnable() {
             @Override
             public void run() {

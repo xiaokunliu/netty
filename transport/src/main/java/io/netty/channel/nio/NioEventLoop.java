@@ -132,13 +132,24 @@ public final class NioEventLoop extends SingleThreadEventLoop {
     private int cancelledKeys;
     private boolean needsToSelectAgain;
 
+    /**
+     *
+     * @param parent                    EventLoop的parent - EventLoopGroup
+     * @param executor                  线程池对象
+     * @param selectorProvider          创建NIO的Selector提供者
+     * @param strategy                  选择器
+     * @param rejectedExecutionHandler  线程池拒绝策略
+     * @param queueFactory              任务队列工厂
+     */
     NioEventLoop(NioEventLoopGroup parent, Executor executor, SelectorProvider selectorProvider,
                  SelectStrategy strategy, RejectedExecutionHandler rejectedExecutionHandler,
                  EventLoopTaskQueueFactory queueFactory) {
+
         super(parent, executor, false, newTaskQueue(queueFactory), newTaskQueue(queueFactory),
                 rejectedExecutionHandler);
         this.provider = ObjectUtil.checkNotNull(selectorProvider, "selectorProvider");
         this.selectStrategy = ObjectUtil.checkNotNull(strategy, "selectStrategy");
+        // 创建Selector
         final SelectorTuple selectorTuple = openSelector();
         this.selector = selectorTuple.selector;
         this.unwrappedSelector = selectorTuple.unwrappedSelector;
@@ -453,6 +464,7 @@ public final class NioEventLoop extends SingleThreadEventLoop {
                         }
                         nextWakeupNanos.set(curDeadlineNanos);
                         try {
+                            // 检测当前的EventLoop的队列中是否有任务
                             if (!hasTasks()) {
                                 strategy = select(curDeadlineNanos);
                             }
@@ -476,27 +488,35 @@ public final class NioEventLoop extends SingleThreadEventLoop {
                 selectCnt++;
                 cancelledKeys = 0;
                 needsToSelectAgain = false;
+                // 控制事件轮询器处理IO事件的比率
                 final int ioRatio = this.ioRatio;
                 boolean ranTasks;
                 if (ioRatio == 100) {
+                    // 如果IO处理比率高，则同时处理就绪事件以及当前轮询器队列中的所有任务
+                    // 不然就分开处理
                     try {
                         if (strategy > 0) {
+                            // 处理一系列的就绪事件
                             processSelectedKeys();
                         }
                     } finally {
                         // Ensure we always run tasks.
+                        // 执行所有的任务
                         ranTasks = runAllTasks();
                     }
                 } else if (strategy > 0) {
                     final long ioStartTime = System.nanoTime();
                     try {
+                        // 处理就绪事件
                         processSelectedKeys();
                     } finally {
+                        // 在一定事件内处理队列中的任务
                         // Ensure we always run tasks.
                         final long ioTime = System.nanoTime() - ioStartTime;
                         ranTasks = runAllTasks(ioTime * (100 - ioRatio) / ioRatio);
                     }
                 } else {
+                    // 处理任务
                     ranTasks = runAllTasks(0); // This will run the minimum number of tasks
                 }
 

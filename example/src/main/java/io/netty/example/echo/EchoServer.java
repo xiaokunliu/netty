@@ -49,16 +49,20 @@ public final class EchoServer {
         }
 
         // Configure the server.
+        // 创建Reactor线程组
         EventLoopGroup bossGroup = new NioEventLoopGroup(1);
         EventLoopGroup workerGroup = new NioEventLoopGroup();
+
+        // 创建要处理的handler
         final EchoServerHandler serverHandler = new EchoServerHandler();
         try {
+            // 创建启动类
             ServerBootstrap b = new ServerBootstrap();
-            b.group(bossGroup, workerGroup)
-             .channel(NioServerSocketChannel.class)
-             .option(ChannelOption.SO_BACKLOG, 100)
-             .handler(new LoggingHandler(LogLevel.INFO))
-             .childHandler(new ChannelInitializer<SocketChannel>() {
+            b.group(bossGroup, workerGroup)                 // 添加线程组
+             .channel(NioServerSocketChannel.class)         // 创建并添加服务端的channel
+             .option(ChannelOption.SO_BACKLOG, 100)   // 服务端channel的配置
+             .handler(new LoggingHandler(LogLevel.INFO))    // 共用的handler，用于处理日志
+             .childHandler(new ChannelInitializer<SocketChannel>() {    // 保证每一个socket channel都会对应着一个自己的channel handler
                  @Override
                  public void initChannel(SocketChannel ch) throws Exception {
                      ChannelPipeline p = ch.pipeline();

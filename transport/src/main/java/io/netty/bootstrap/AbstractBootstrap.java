@@ -106,6 +106,7 @@ public abstract class AbstractBootstrap<B extends AbstractBootstrap<B, C>, C ext
      * {@link Channel} implementation has no no-args constructor.
      */
     public B channel(Class<? extends C> channelClass) {
+        //构建一个Channel的创建工厂类,用于后续构建服务端的channel
         return channelFactory(new ReflectiveChannelFactory<C>(
                 ObjectUtil.checkNotNull(channelClass, "channelClass")
         ));
@@ -264,11 +265,14 @@ public abstract class AbstractBootstrap<B extends AbstractBootstrap<B, C>, C ext
      * Create a new {@link Channel} and bind it.
      */
     public ChannelFuture bind(SocketAddress localAddress) {
+        // 进行当前group/channelFactory的校验,绑定之前必须完成group以及channel的初始化流程
         validate();
+        // 执行服务端channel的注册和绑定
         return doBind(ObjectUtil.checkNotNull(localAddress, "localAddress"));
     }
 
     private ChannelFuture doBind(final SocketAddress localAddress) {
+        // 异步注册和绑定服务端channel事件
         final ChannelFuture regFuture = initAndRegister();
         final Channel channel = regFuture.channel();
         if (regFuture.cause() != null) {
@@ -304,10 +308,16 @@ public abstract class AbstractBootstrap<B extends AbstractBootstrap<B, C>, C ext
         }
     }
 
+    /**
+     * @return 初始化并注册channel,返回ChannelFuture
+     */
     final ChannelFuture initAndRegister() {
         Channel channel = null;
         try {
+            // 使用channelFactory创建NioServerChannel
             channel = channelFactory.newChannel();
+
+            // 初始化channel配置
             init(channel);
         } catch (Throwable t) {
             if (channel != null) {
@@ -320,6 +330,7 @@ public abstract class AbstractBootstrap<B extends AbstractBootstrap<B, C>, C ext
             return new DefaultChannelPromise(new FailedChannel(), GlobalEventExecutor.INSTANCE).setFailure(t);
         }
 
+        // 注册服务端的channel
         ChannelFuture regFuture = config().group().register(channel);
         if (regFuture.cause() != null) {
             if (channel.isRegistered()) {

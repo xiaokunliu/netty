@@ -41,6 +41,8 @@ public final class ThreadExecutorMap {
      * Set the current {@link EventExecutor} that is used by the {@link Thread}.
      */
     private static void setCurrentEventExecutor(EventExecutor executor) {
+        // 使用FastThreadLocal来存储事件轮询器，保证每个事件轮询器都会有对应的一个线程来处理
+        // FastThreadLocal
         mappings.set(executor);
     }
 
@@ -54,6 +56,9 @@ public final class ThreadExecutorMap {
         return new Executor() {
             @Override
             public void execute(final Runnable command) {
+                // ThreadPerTaskExecutor.execute -> apply
+                // 启动一个线程执行任务并传递事件轮询器
+                // FastThreadLocalThread.run()
                 executor.execute(apply(command, eventExecutor));
             }
         };
@@ -69,10 +74,13 @@ public final class ThreadExecutorMap {
         return new Runnable() {
             @Override
             public void run() {
+                // SingleThreadEventLoop  ->  SingleThreadEventExecutor
                 setCurrentEventExecutor(eventExecutor);
                 try {
+                    // 执行任务,为了保证在任务执行过程被回调的事件轮询器是当前的EventLoop
                     command.run();
                 } finally {
+                    // 任务执行完成之后将取消并发级别的事件轮询器
                     setCurrentEventExecutor(null);
                 }
             }

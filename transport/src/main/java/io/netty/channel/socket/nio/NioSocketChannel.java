@@ -421,6 +421,8 @@ public class NioSocketChannel extends AbstractNioByteChannel implements io.netty
                     // We limit the max amount to int above so cast is safe
                     long attemptedBytes = in.nioBufferSize();
                     final long localWrittenBytes = ch.write(nioBuffers, 0, nioBufferCnt);
+
+                    // 数据还没有完全写完，执行写操作
                     if (localWrittenBytes <= 0) {
                         incompleteWrite(true);
                         return;
@@ -435,6 +437,7 @@ public class NioSocketChannel extends AbstractNioByteChannel implements io.netty
             }
         } while (writeSpinCount > 0);
 
+        // 数据还没有完全写完，执行写操作
         incompleteWrite(writeSpinCount < 0);
     }
 
@@ -468,6 +471,7 @@ public class NioSocketChannel extends AbstractNioByteChannel implements io.netty
         private volatile int maxBytesPerGatheringWrite = Integer.MAX_VALUE;
         private NioSocketChannelConfig(NioSocketChannel channel, Socket javaSocket) {
             super(channel, javaSocket);
+            // 计算最大刷新数据的缓冲区大小
             calculateMaxBytesPerGatheringWrite();
         }
 

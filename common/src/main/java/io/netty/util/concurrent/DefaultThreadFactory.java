@@ -119,6 +119,7 @@ public class DefaultThreadFactory implements ThreadFactory {
     }
 
     protected Thread newThread(Runnable r, String name) {
+        // 创建Netty的FastThreadLocalThread
         return new FastThreadLocalThread(threadGroup, r, name);
     }
 }

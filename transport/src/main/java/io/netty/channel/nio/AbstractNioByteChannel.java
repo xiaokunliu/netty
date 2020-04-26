@@ -247,6 +247,11 @@ public abstract class AbstractNioByteChannel extends AbstractNioChannel {
         return WRITE_STATUS_SNDBUF_FULL;
     }
 
+    /**
+     * 执行写操作
+     * @param in
+     * @throws Exception
+     */
     @Override
     protected void doWrite(ChannelOutboundBuffer in) throws Exception {
         int writeSpinCount = config().getWriteSpinCount();
@@ -254,6 +259,7 @@ public abstract class AbstractNioByteChannel extends AbstractNioChannel {
             Object msg = in.current();
             if (msg == null) {
                 // Wrote all messages.
+                // 取消写操作
                 clearOpWrite();
                 // Directly return here so incompleteWrite(...) is not called.
                 return;
@@ -261,6 +267,7 @@ public abstract class AbstractNioByteChannel extends AbstractNioChannel {
             writeSpinCount -= doWriteInternal(in, msg);
         } while (writeSpinCount > 0);
 
+        // 完成写操作
         incompleteWrite(writeSpinCount < 0);
     }
 
@@ -286,6 +293,7 @@ public abstract class AbstractNioByteChannel extends AbstractNioChannel {
     protected final void incompleteWrite(boolean setOpWrite) {
         // Did not write completely.
         if (setOpWrite) {
+            // 注册写操作
             setOpWrite();
         } else {
             // It is possible that we have set the write OP, woken up by NIO because the socket is writable, and then

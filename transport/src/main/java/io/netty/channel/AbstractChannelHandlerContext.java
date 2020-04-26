@@ -149,6 +149,7 @@ abstract class AbstractChannelHandlerContext implements ChannelHandlerContext, R
         if (executor.inEventLoop()) {
             next.invokeChannelRegistered();
         } else {
+            // 第一次注册，eventloop提交任务
             executor.execute(new Runnable() {
                 @Override
                 public void run() {
@@ -161,6 +162,7 @@ abstract class AbstractChannelHandlerContext implements ChannelHandlerContext, R
     private void invokeChannelRegistered() {
         if (invokeHandler()) {
             try {
+                // 传递到子类的ChannelHandler处理事件
                 ((ChannelInboundHandler) handler()).channelRegistered(this);
             } catch (Throwable t) {
                 notifyHandlerException(t);
@@ -483,7 +485,9 @@ abstract class AbstractChannelHandlerContext implements ChannelHandlerContext, R
             return promise;
         }
 
+        // 搜索到最后的一个context,即HeadContext事件
         final AbstractChannelHandlerContext next = findContextOutbound(MASK_BIND);
+        // NioEventLoop
         EventExecutor executor = next.executor();
         if (executor.inEventLoop()) {
             next.invokeBind(localAddress, promise);
@@ -769,7 +773,9 @@ abstract class AbstractChannelHandlerContext implements ChannelHandlerContext, R
     private void write(Object msg, boolean flush, ChannelPromise promise) {
         ObjectUtil.checkNotNull(msg, "msg");
         try {
+            // 校验
             if (isNotValidPromise(promise, true)) {
+                // 释放资源
                 ReferenceCountUtil.release(msg);
                 // cancelled
                 return;
@@ -779,6 +785,7 @@ abstract class AbstractChannelHandlerContext implements ChannelHandlerContext, R
             throw e;
         }
 
+        //
         final AbstractChannelHandlerContext next = findContextOutbound(flush ?
                 (MASK_WRITE | MASK_FLUSH) : MASK_WRITE);
         final Object m = pipeline.touch(msg, next);

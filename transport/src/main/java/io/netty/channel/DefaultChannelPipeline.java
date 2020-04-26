@@ -89,10 +89,22 @@ public class DefaultChannelPipeline implements ChannelPipeline {
      */
     private boolean registered;
 
+    /**
+     * 为当前的责任链创建上下文对象
+     * @param channel
+     */
     protected DefaultChannelPipeline(Channel channel) {
+
+        // 当传递为服务端的channel，this.channel为NioServerSocketChannel
+        // 当前的责任链保存对应的channel信息
         this.channel = ObjectUtil.checkNotNull(channel, "channel");
+
+        // channel在整个责任链处理正常返回的成功结果对象Future
         succeededFuture = new SucceededChannelFuture(channel, null);
+
+        // 对channel在整个责任链处理添加监听,负责异常的捕获
         voidPromise =  new VoidChannelPromise(channel, true);
+
 
         tail = new TailContext(this);
         head = new HeadContext(this);
@@ -201,6 +213,7 @@ public class DefaultChannelPipeline implements ChannelPipeline {
         synchronized (this) {
             checkMultiplicity(handler);
 
+            // 创建上下文，默认为DefaultChannelHandlerContext
             newCtx = newContext(group, filterName(name, handler), handler);
 
             addLast0(newCtx);
@@ -1117,6 +1130,11 @@ public class DefaultChannelPipeline implements ChannelPipeline {
         }
     }
 
+    /**
+     * 将当前新添加的handler的上文文对象添加到等待链表的尾部节点中
+     * @param ctx
+     * @param added
+     */
     private void callHandlerCallbackLater(AbstractChannelHandlerContext ctx, boolean added) {
         assert !registered;
 

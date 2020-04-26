@@ -31,6 +31,7 @@ import java.util.Map;
  */
 public abstract class AbstractBootstrapConfig<B extends AbstractBootstrap<B, C>, C extends Channel> {
 
+    // 存储为子类的server bootstrap
     protected final B bootstrap;
 
     protected AbstractBootstrapConfig(B bootstrap) {
@@ -78,6 +79,7 @@ public abstract class AbstractBootstrapConfig<B extends AbstractBootstrap<B, C>,
      */
     @SuppressWarnings("deprecation")
     public final EventLoopGroup group() {
+        // master eventLoopGroup
         return bootstrap.group();
     }
 

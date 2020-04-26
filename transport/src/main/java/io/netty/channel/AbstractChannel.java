@@ -69,9 +69,14 @@ public abstract class AbstractChannel extends DefaultAttributeMap implements Cha
      *        the parent of this channel. {@code null} if there's no parent.
      */
     protected AbstractChannel(Channel parent) {
+        // 如果当前为服务端的channel，则parent=null
         this.parent = parent;
+        // 创建channelId
         id = newId();
+        // 使用NioServerSocketChannel父类的AbstractNioMessageChannel下的NioMessageUnsafe
+        // 使用NioSocketChannel父类的AbstractNioByteChannel下的AbstractNioUnsafe
         unsafe = newUnsafe();
+        // 创建channel的责任链,DefaultChannelPipeline
         pipeline = newChannelPipeline();
     }
 
@@ -464,9 +469,12 @@ public abstract class AbstractChannel extends DefaultAttributeMap implements Cha
 
             AbstractChannel.this.eventLoop = eventLoop;
 
+            // 当前事件轮询器是否专属于当前线程
+            // 当前线程是如何绑定到EventLoop上的
             if (eventLoop.inEventLoop()) {
                 register0(promise);
             } else {
+                // 第一次刚开始注册执行当前这个方法
                 try {
                     eventLoop.execute(new Runnable() {
                         @Override
@@ -489,30 +497,38 @@ public abstract class AbstractChannel extends DefaultAttributeMap implements Cha
             try {
                 // check if the channel is still open as it could be closed in the mean time when the register
                 // call was outside of the eventLoop
+                // 检测channel的开闭状态
                 if (!promise.setUncancellable() || !ensureOpen(promise)) {
                     return;
                 }
                 boolean firstRegistration = neverRegistered;
+
+                // 执行注册操作,将channel注册到复用器上
                 doRegister();
                 neverRegistered = false;
                 registered = true;
 
                 // Ensure we call handlerAdded(...) before we actually notify the promise. This is needed as the
                 // user may already fire events through the pipeline in the ChannelFutureListener.
+                // 唤醒添加的channel handler
                 pipeline.invokeHandlerAddedIfNeeded();
 
                 safeSetSuccess(promise);
+
+                // 将注册事件传播到责任链的channelhandler中，告知当前已经完成注册操作
                 pipeline.fireChannelRegistered();
                 // Only fire a channelActive if the channel has never been registered. This prevents firing
                 // multiple channel actives if the channel is deregistered and re-registered.
                 if (isActive()) {
                     if (firstRegistration) {
+                        // 传播Active事件
                         pipeline.fireChannelActive();
                     } else if (config().isAutoRead()) {
                         // This channel was registered before and autoRead() is set. This means we need to begin read
                         // again so that we process inbound data.
                         //
                         // See https://github.com/netty/netty/issues/4805
+                        // 开始进行读取操作
                         beginRead();
                     }
                 }
@@ -856,6 +872,7 @@ public abstract class AbstractChannel extends DefaultAttributeMap implements Cha
         public final void write(Object msg, ChannelPromise promise) {
             assertEventLoop();
 
+            // 创建channel的时候会创建unsafe，同时也会创建ChannelOutboundBuffer，用于存储写出的数据
             ChannelOutboundBuffer outboundBuffer = this.outboundBuffer;
             if (outboundBuffer == null) {
                 // If the outboundBuffer is null we know the channel was closed and so
@@ -897,6 +914,9 @@ public abstract class AbstractChannel extends DefaultAttributeMap implements Cha
             flush0();
         }
 
+        /**
+         *
+         */
         @SuppressWarnings("deprecation")
         protected void flush0() {
             if (inFlush0) {
@@ -904,6 +924,8 @@ public abstract class AbstractChannel extends DefaultAttributeMap implements Cha
                 return;
             }
 
+            // 创建unsafe的时候就已经完成初始化操作，用于存储要刷出到网络的数据缓冲
+            // 数据是如何存储的？
             final ChannelOutboundBuffer outboundBuffer = this.outboundBuffer;
             if (outboundBuffer == null || outboundBuffer.isEmpty()) {
                 return;
@@ -927,6 +949,7 @@ public abstract class AbstractChannel extends DefaultAttributeMap implements Cha
             }
 
             try {
+                // 写出去的流程，已经有数据
                 doWrite(outboundBuffer);
             } catch (Throwable t) {
                 if (t instanceof IOException && config().isAutoClose()) {
