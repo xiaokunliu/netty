@@ -74,7 +74,10 @@ public abstract class AbstractChannel extends DefaultAttributeMap implements Cha
         // 创建channelId
         id = newId();
         // 使用NioServerSocketChannel父类的AbstractNioMessageChannel下的NioMessageUnsafe
-        // 使用NioSocketChannel父类的AbstractNioByteChannel下的AbstractNioUnsafe
+        // 使用NioSocketChannel下的NioSocketChannelUnsafe
+
+        // 根据channel的类型来区分,服务端为NioMessageUnsafe
+        // 客户端为NioSocketChannelUnsafe
         unsafe = newUnsafe();
         // 创建channel的责任链,DefaultChannelPipeline
         pipeline = newChannelPipeline();

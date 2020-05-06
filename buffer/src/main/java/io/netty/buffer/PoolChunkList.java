@@ -48,6 +48,8 @@ final class PoolChunkList<T> implements PoolChunkListMetric {
         this.nextList = nextList;
         this.minUsage = minUsage;
         this.maxUsage = maxUsage;
+
+        // 获取最大的容量，根据使用量来分配比率
         maxCapacity = calculateMaxCapacity(minUsage, chunkSize);
     }
 

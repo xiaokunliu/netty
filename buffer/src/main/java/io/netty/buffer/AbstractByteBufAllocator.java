@@ -247,6 +247,12 @@ public abstract class AbstractByteBufAllocator implements ByteBufAllocator {
         return StringUtil.simpleClassName(this) + "(directByDefault: " + directByDefault + ')';
     }
 
+    /**
+     *
+     * @param minNewCapacity        实际容量  使用池化的那么这里就是分配的容器给定的内存大小容量，并非实际容量
+     * @param maxCapacity           最大容量  Integer.MAX_VALUe
+     * @return
+     */
     @Override
     public int calculateNewCapacity(int minNewCapacity, int maxCapacity) {
         checkPositiveOrZero(minNewCapacity, "minNewCapacity");
@@ -262,6 +268,8 @@ public abstract class AbstractByteBufAllocator implements ByteBufAllocator {
         }
 
         // If over threshold, do not double but just increase by threshold.
+        //  > 4M
+        // cap / 4 * 4 + 4
         if (minNewCapacity > threshold) {
             int newCapacity = minNewCapacity / threshold * threshold;
             if (newCapacity > maxCapacity - threshold) {
@@ -273,6 +281,8 @@ public abstract class AbstractByteBufAllocator implements ByteBufAllocator {
         }
 
         // Not over threshold. Double up to 4 MiB, starting from 64.
+        // < 4M 进行以2的倍数进行增长
+        // 2096，此时分配的内存为3072byte
         int newCapacity = 64;
         while (newCapacity < minNewCapacity) {
             newCapacity <<= 1;

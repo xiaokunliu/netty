@@ -105,7 +105,7 @@ public class DefaultChannelPipeline implements ChannelPipeline {
         // 对channel在整个责任链处理添加监听,负责异常的捕获
         voidPromise =  new VoidChannelPromise(channel, true);
 
-
+        // 创建上下文对象，并通过双端链表的方式存储上文对象
         tail = new TailContext(this);
         head = new HeadContext(this);
 
@@ -1328,6 +1328,8 @@ public class DefaultChannelPipeline implements ChannelPipeline {
         HeadContext(DefaultChannelPipeline pipeline) {
             super(pipeline, null, HEAD_NAME, HeadContext.class);
             unsafe = pipeline.channel().unsafe();
+
+            // 保证handler调用方法的顺序，可以理解为handler执行的生命周期，通过状态机来控制生命周期
             setAddComplete();
         }
 

@@ -936,6 +936,8 @@ abstract class AbstractChannelHandlerContext implements ChannelHandlerContext, R
         handlerState = REMOVE_COMPLETE;
     }
 
+    // 对于Netty责任链使用的EventLoop是属于有序的执行器,为了保证handlerAdd与handlerRemove的执行存在先后关系,
+    // 通过以下的状态机来控制,也就是handler所谓的生命周期,如果EventLoop不保证有序的话,只需要通过ADD_COMPLETE或者REMOVE_COMPLETE来告知方法是否被调用即可
     final boolean setAddComplete() {
         for (;;) {
             int oldState = handlerState;

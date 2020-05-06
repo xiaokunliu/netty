@@ -53,10 +53,10 @@ public abstract class Recycler<T> {
     private static final int DEFAULT_INITIAL_MAX_CAPACITY_PER_THREAD = 4 * 1024; // Use 4k instances as default.
     private static final int DEFAULT_MAX_CAPACITY_PER_THREAD;
     private static final int INITIAL_CAPACITY;
-    private static final int MAX_SHARED_CAPACITY_FACTOR;
+    private static final int MAX_SHARED_CAPACITY_FACTOR;   // 2
     private static final int MAX_DELAYED_QUEUES_PER_THREAD;
     private static final int LINK_CAPACITY;
-    private static final int RATIO;
+    private static final int RATIO;         //8
 
     static {
         // In the future, we might have different maxCapacity for different object types.
@@ -141,6 +141,7 @@ public abstract class Recycler<T> {
 
     protected Recycler(int maxCapacityPerThread, int maxSharedCapacityFactor,
                        int ratio, int maxDelayedQueuesPerThread) {
+        // 512M
         interval = safeFindNextPositivePowerOfTwo(ratio);
         if (maxCapacityPerThread <= 0) {
             this.maxCapacityPerThread = 0;
@@ -154,11 +155,15 @@ public abstract class Recycler<T> {
     }
 
     @SuppressWarnings("unchecked")
+    // 先从线程缓存中获取stack，然后再从stack获取buf，不存在则创建buf并存储到cache中
     public final T get() {
         if (maxCapacityPerThread == 0) {
             return newObject((Handle<T>) NOOP_HANDLE);
         }
+        // 从线程缓存中获取栈信息
         Stack<T> stack = threadLocal.get();
+
+        // 从栈弹出handle
         DefaultHandle<T> handle = stack.pop();
         if (handle == null) {
             handle = stack.newHandle();

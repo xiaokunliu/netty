@@ -290,6 +290,9 @@ public abstract class AbstractByteBuf extends ByteBuf {
             ensureAccessible();
             return;
         }
+
+        // 如果不校验界限
+        // io.netty.buffer.checkBounds = false不做数组校验界限，可以实现动态扩容
         if (checkBounds && targetCapacity > maxCapacity) {
             ensureAccessible();
             throw new IndexOutOfBoundsException(String.format(
@@ -299,6 +302,10 @@ public abstract class AbstractByteBuf extends ByteBuf {
 
         // Normalize the target capacity to the power of 2.
         final int fastWritable = maxFastWritableBytes();
+
+        // 动态扩容
+        // 实际容量targetCapacity
+        //
         int newCapacity = fastWritable >= minWritableBytes ? writerIndex + fastWritable
                 : alloc().calculateNewCapacity(targetCapacity, maxCapacity);
 

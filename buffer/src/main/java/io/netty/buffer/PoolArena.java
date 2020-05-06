@@ -38,6 +38,7 @@ abstract class PoolArena<T> implements PoolArenaMetric {
         Normal
     }
 
+    // 32
     static final int numTinySubpagePools = 512 >>> 4;
 
     final PooledByteBufAllocator parent;
@@ -83,32 +84,65 @@ abstract class PoolArena<T> implements PoolArenaMetric {
     // TODO: Test if adding padding helps under contention
     //private long pad0, pad1, pad2, pad3, pad4, pad5, pad6, pad7;
 
-    protected PoolArena(PooledByteBufAllocator parent, int pageSize,
-          int maxOrder, int pageShifts, int chunkSize, int cacheAlignment) {
+    /**
+     *
+     * @param parent             对应的内存分配器，默认为池化且堆外内存
+     * @param pageSize           页大小
+     * @param maxOrder           偏移位数：11
+     * @param pageShifts         页移个数：31 - log2 8 * 1024
+     * @param chunkSize          chunk size大小： 16M
+     * @param cacheAlignment     0
+     */
+    protected PoolArena(PooledByteBufAllocator parent,
+                        int pageSize,
+                        int maxOrder,
+                        int pageShifts,
+                        int chunkSize,
+                        int cacheAlignment) {
         this.parent = parent;
         this.pageSize = pageSize;
         this.maxOrder = maxOrder;
-        this.pageShifts = pageShifts;
+        this.pageShifts = pageShifts; // 18
         this.chunkSize = chunkSize;
+
         directMemoryCacheAlignment = cacheAlignment;
         directMemoryCacheAlignmentMask = cacheAlignment - 1;
+
+        // pagesize: 8kb
         subpageOverflowMask = ~(pageSize - 1);
+
+        // tinySubpagePools大小为32，即32个subpage
         tinySubpagePools = newSubpagePoolArray(numTinySubpagePools);
         for (int i = 0; i < tinySubpagePools.length; i ++) {
+            // pageSize 为8kb的双向链表结构
             tinySubpagePools[i] = newSubpagePoolHead(pageSize);
         }
 
+        // 9 个small subpage
         numSmallSubpagePools = pageShifts - 9;
         smallSubpagePools = newSubpagePoolArray(numSmallSubpagePools);
         for (int i = 0; i < smallSubpagePools.length; i ++) {
+            // pageSize为8kb
             smallSubpagePools[i] = newSubpagePoolHead(pageSize);
         }
 
+        // 存储双向链表
+        // 数据使用的chunklist: 100 - MAX_VALUE
         q100 = new PoolChunkList<T>(this, null, 100, Integer.MAX_VALUE, chunkSize);
+
+        // 75 - 100
         q075 = new PoolChunkList<T>(this, q100, 75, 100, chunkSize);
+
+        // 50 -100
         q050 = new PoolChunkList<T>(this, q075, 50, 100, chunkSize);
+
+        // 25 -75
         q025 = new PoolChunkList<T>(this, q050, 25, 75, chunkSize);
+
+        // 1 - 50
         q000 = new PoolChunkList<T>(this, q025, 1, 50, chunkSize);
+
+        // MIN_VALUE - 25
         qInit = new PoolChunkList<T>(this, q000, Integer.MIN_VALUE, 25, chunkSize);
 
         q100.prevList(q075);
@@ -162,19 +196,21 @@ abstract class PoolArena<T> implements PoolArenaMetric {
         return tableIdx;
     }
 
-    // capacity < pageSize
+    // capacity < pageSize (8kb)
     boolean isTinyOrSmall(int normCapacity) {
         return (normCapacity & subpageOverflowMask) == 0;
     }
 
-    // normCapacity < 512
+    // normCapacity < 512byte
     static boolean isTiny(int normCapacity) {
         return (normCapacity & 0xFFFFFE00) == 0;
     }
 
     private void allocate(PoolThreadCache cache, PooledByteBuf<T> buf, final int reqCapacity) {
+        // 计算合适的一个区域
         final int normCapacity = normalizeCapacity(reqCapacity);
-        if (isTinyOrSmall(normCapacity)) { // capacity < pageSize
+
+        if (isTinyOrSmall(normCapacity)) { // capacity < pageSize 8kb
             int tableIdx;
             PoolSubpage<T>[] table;
             boolean tiny = isTiny(normCapacity);
@@ -218,6 +254,8 @@ abstract class PoolArena<T> implements PoolArenaMetric {
             incTinySmallAllocation(tiny);
             return;
         }
+
+        // 16M
         if (normCapacity <= chunkSize) {
             if (cache.allocateNormal(this, buf, reqCapacity, normCapacity)) {
                 // was able to allocate out of the cache so move on
@@ -228,6 +266,7 @@ abstract class PoolArena<T> implements PoolArenaMetric {
                 ++allocationsNormal;
             }
         } else {
+            // > 16M,直接从操作系统中申请资源
             // Huge allocations are never served via the cache so just call allocateHuge
             allocateHuge(buf, reqCapacity);
         }
@@ -341,9 +380,9 @@ abstract class PoolArena<T> implements PoolArenaMetric {
             return directMemoryCacheAlignment == 0 ? reqCapacity : alignCapacity(reqCapacity);
         }
 
-        if (!isTiny(reqCapacity)) { // >= 512
+        if (!isTiny(reqCapacity)) { // >= 512byte
             // Doubled
-
+            // 进行扩容，选择合适的容量来进行存储
             int normalizedCapacity = reqCapacity;
             normalizedCapacity --;
             normalizedCapacity |= normalizedCapacity >>>  1;
@@ -370,6 +409,7 @@ abstract class PoolArena<T> implements PoolArenaMetric {
             return reqCapacity;
         }
 
+        // 进行计算分配，默认最小为16byte
         return (reqCapacity & ~15) + 16;
     }
 
@@ -655,6 +695,15 @@ abstract class PoolArena<T> implements PoolArenaMetric {
 
     static final class HeapArena extends PoolArena<byte[]> {
 
+        /**
+         *
+         * @param parent                        默认为PooledByteBuffAllocator分配器
+         * @param pageSize                      默认为：8kb
+         * @param maxOrder                      默认为：11
+         * @param pageShifts                    默认为：18
+         * @param chunkSize                     16M
+         * @param directMemoryCacheAlignment    0
+         */
         HeapArena(PooledByteBufAllocator parent, int pageSize, int maxOrder,
                 int pageShifts, int chunkSize, int directMemoryCacheAlignment) {
             super(parent, pageSize, maxOrder, pageShifts, chunkSize,
@@ -703,6 +752,15 @@ abstract class PoolArena<T> implements PoolArenaMetric {
 
     static final class DirectArena extends PoolArena<ByteBuffer> {
 
+        /**
+         *
+         * @param parent                        分配器
+         * @param pageSize                      页的大小：8kb
+         * @param maxOrder                      移位计算个数：11
+         * @param pageShifts                    页移数： 31 - log2 8 * 1024
+         * @param chunkSize                     chunkSize: 16M
+         * @param directMemoryCacheAlignment    0
+         */
         DirectArena(PooledByteBufAllocator parent, int pageSize, int maxOrder,
                 int pageShifts, int chunkSize, int directMemoryCacheAlignment) {
             super(parent, pageSize, maxOrder, pageShifts, chunkSize,
@@ -726,6 +784,14 @@ abstract class PoolArena<T> implements PoolArenaMetric {
             return directMemoryCacheAlignment - remainder;
         }
 
+        /**
+         * 创建chunk
+         * @param pageSize
+         * @param maxOrder
+         * @param pageShifts
+         * @param chunkSize
+         * @return
+         */
         @Override
         protected PoolChunk<ByteBuffer> newChunk(int pageSize, int maxOrder,
                 int pageShifts, int chunkSize) {
@@ -770,6 +836,7 @@ abstract class PoolArena<T> implements PoolArenaMetric {
         @Override
         protected PooledByteBuf<ByteBuffer> newByteBuf(int maxCapacity) {
             if (HAS_UNSAFE) {
+                // 直接创建一个ByteBuf
                 return PooledUnsafeDirectByteBuf.newInstance(maxCapacity);
             } else {
                 return PooledDirectByteBuf.newInstance(maxCapacity);

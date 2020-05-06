@@ -49,9 +49,10 @@ final class PoolThreadCache {
     // Hold the caches for the different size classes, which are tiny, small and normal.
     private final MemoryRegionCache<byte[]>[] tinySubPageHeapCaches;
     private final MemoryRegionCache<byte[]>[] smallSubPageHeapCaches;
+    private final MemoryRegionCache<byte[]>[] normalHeapCaches;
+
     private final MemoryRegionCache<ByteBuffer>[] tinySubPageDirectCaches;
     private final MemoryRegionCache<ByteBuffer>[] smallSubPageDirectCaches;
-    private final MemoryRegionCache<byte[]>[] normalHeapCaches;
     private final MemoryRegionCache<ByteBuffer>[] normalDirectCaches;
 
     // Used for bitshifting when calculate the index of normal caches later
@@ -65,6 +66,16 @@ final class PoolThreadCache {
     // TODO: Test if adding padding helps under contention
     //private long pad0, pad1, pad2, pad3, pad4, pad5, pad6, pad7;
 
+    /**
+     *
+     * @param heapArena                         堆的区域个数
+     * @param directArena                       堆外的区域个数
+     * @param tinyCacheSize                     默认为：512
+     * @param smallCacheSize                    默认为：256
+     * @param normalCacheSize                   默认为：64
+     * @param maxCachedBufferCapacity           32kb
+     * @param freeSweepAllocationThreshold      8kb
+     */
     PoolThreadCache(PoolArena<byte[]> heapArena, PoolArena<ByteBuffer> directArena,
                     int tinyCacheSize, int smallCacheSize, int normalCacheSize,
                     int maxCachedBufferCapacity, int freeSweepAllocationThreshold) {
@@ -73,15 +84,22 @@ final class PoolThreadCache {
         this.heapArena = heapArena;
         this.directArena = directArena;
         if (directArena != null) {
+            // 队列为8M
             tinySubPageDirectCaches = createSubPageCaches(
                     tinyCacheSize, PoolArena.numTinySubpagePools, SizeClass.Tiny);
+
+            // 队列为16M
             smallSubPageDirectCaches = createSubPageCaches(
                     smallCacheSize, directArena.numSmallSubpagePools, SizeClass.Small);
 
+            // 13
             numShiftsNormalDirect = log2(directArena.pageSize);
+
+            // 队列为64M
             normalDirectCaches = createNormalCaches(
                     normalCacheSize, maxCachedBufferCapacity, directArena);
 
+            // 记录区域arean存在多少个线程cache
             directArena.numThreadCaches.getAndIncrement();
         } else {
             // No directArea is configured so just null out all caches
@@ -136,8 +154,11 @@ final class PoolThreadCache {
 
     private static <T> MemoryRegionCache<T>[] createNormalCaches(
             int cacheSize, int maxCachedBufferCapacity, PoolArena<T> area) {
+
         if (cacheSize > 0 && maxCachedBufferCapacity > 0) {
+            // 16M  32kb
             int max = Math.min(area.chunkSize, maxCachedBufferCapacity);
+            // 3
             int arraySize = Math.max(1, log2(max / area.pageSize) + 1);
 
             @SuppressWarnings("unchecked")
@@ -280,6 +301,7 @@ final class PoolThreadCache {
         return cache.free(finalizer);
     }
 
+    // 清除缓存数据
     void trim() {
         trim(tinySubPageDirectCaches);
         trim(smallSubPageDirectCaches);
@@ -374,7 +396,12 @@ final class PoolThreadCache {
         private int allocations;
 
         MemoryRegionCache(int size, SizeClass sizeClass) {
+            // 如果Tiny，默认创建队列空间为8M
+            // 如果为Small，默认创建的队列空间为16M
+            // 如果为Normal，默认创建的队列空间为64M
             this.size = MathUtil.safeFindNextPositivePowerOfTwo(size);
+
+            // 为queue填充数据
             queue = PlatformDependent.newFixedMpscQueue(this.size);
             this.sizeClass = sizeClass;
         }

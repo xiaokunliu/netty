@@ -21,6 +21,7 @@ package io.netty.buffer;
  */
 public interface ByteBufAllocator {
 
+    // 服务端默认使用池化分配的策略
     ByteBufAllocator DEFAULT = ByteBufUtil.DEFAULT_ALLOCATOR;
 
     /**

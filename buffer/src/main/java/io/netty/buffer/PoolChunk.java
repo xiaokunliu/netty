@@ -141,6 +141,16 @@ final class PoolChunk<T> implements PoolChunkMetric {
     // TODO: Test if adding padding helps under contention
     //private long pad0, pad1, pad2, pad3, pad4, pad5, pad6, pad7;
 
+    /**
+     *
+     * @param arena
+     * @param memory
+     * @param pageSize
+     * @param maxOrder
+     * @param pageShifts
+     * @param chunkSize
+     * @param offset
+     */
     PoolChunk(PoolArena<T> arena, T memory, int pageSize, int maxOrder, int pageShifts, int chunkSize, int offset) {
         unpooled = false;
         this.arena = arena;
@@ -172,6 +182,7 @@ final class PoolChunk<T> implements PoolChunkMetric {
             }
         }
 
+        // 2kb
         subpages = newSubpageArray(maxSubpageAllocs);
         cachedNioBuffers = new ArrayDeque<ByteBuffer>(8);
     }
@@ -422,6 +433,7 @@ final class PoolChunk<T> implements PoolChunkMetric {
 
         int memoryMapIdx = memoryMapIdx(handle);
 
+        //
         PoolSubpage<T> subpage = subpages[subpageIdx(memoryMapIdx)];
         assert subpage.doNotDestroy;
         assert reqCapacity <= subpage.elemSize;

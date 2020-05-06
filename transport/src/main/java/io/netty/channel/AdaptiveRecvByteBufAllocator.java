@@ -34,9 +34,9 @@ import static java.lang.Math.min;
  */
 public class AdaptiveRecvByteBufAllocator extends DefaultMaxMessagesRecvByteBufAllocator {
 
-    static final int DEFAULT_MINIMUM = 64;
-    static final int DEFAULT_INITIAL = 1024;
-    static final int DEFAULT_MAXIMUM = 65536;
+    static final int DEFAULT_MINIMUM = 64;              // 64byte
+    static final int DEFAULT_INITIAL = 1024;            // 1kb
+    static final int DEFAULT_MAXIMUM = 65536;           // 64kb
 
     private static final int INDEX_INCREMENT = 4;
     private static final int INDEX_DECREMENT = 1;
@@ -46,10 +46,14 @@ public class AdaptiveRecvByteBufAllocator extends DefaultMaxMessagesRecvByteBufA
     static {
         List<Integer> sizeTable = new ArrayList<Integer>();
         for (int i = 16; i < 512; i += 16) {
+            // 16b  32b  48b 64b  80b .... 256b
             sizeTable.add(i);
         }
 
         for (int i = 512; i > 0; i <<= 1) {
+            // byte
+            // 最大为1G
+            // [512, 1024, 2048, 4096, 8192, 16384, 32768, 65536, 131072, 262144, 524288, 1048576, 2097152, 4194304, 8388608, 16777216, 33554432, 67108864, 134217728, 268435456, 536870912, 1073741824
             sizeTable.add(i);
         }
 
@@ -65,6 +69,11 @@ public class AdaptiveRecvByteBufAllocator extends DefaultMaxMessagesRecvByteBufA
     @Deprecated
     public static final AdaptiveRecvByteBufAllocator DEFAULT = new AdaptiveRecvByteBufAllocator();
 
+    /**
+     * 存储分配chunk区域的大小
+     * @param size
+     * @return
+     */
     private static int getSizeTableIndex(final int size) {
         for (int low = 0, high = SIZE_TABLE.length - 1;;) {
             if (high < low) {
@@ -172,6 +181,7 @@ public class AdaptiveRecvByteBufAllocator extends DefaultMaxMessagesRecvByteBufA
             throw new IllegalArgumentException("maximum: " + maximum);
         }
 
+        // 64byte 对应的index为minIndex
         int minIndex = getSizeTableIndex(minimum);
         if (SIZE_TABLE[minIndex] < minimum) {
             this.minIndex = minIndex + 1;
@@ -179,6 +189,7 @@ public class AdaptiveRecvByteBufAllocator extends DefaultMaxMessagesRecvByteBufA
             this.minIndex = minIndex;
         }
 
+        // 最大的为64kb对应的index
         int maxIndex = getSizeTableIndex(maximum);
         if (SIZE_TABLE[maxIndex] > maximum) {
             this.maxIndex = maxIndex - 1;
@@ -186,6 +197,7 @@ public class AdaptiveRecvByteBufAllocator extends DefaultMaxMessagesRecvByteBufA
             this.maxIndex = maxIndex;
         }
 
+        // 初始化的时候为1kb的index
         this.initial = initial;
     }
 

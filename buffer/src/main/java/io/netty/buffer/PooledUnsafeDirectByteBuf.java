@@ -35,8 +35,15 @@ final class PooledUnsafeDirectByteBuf extends PooledByteBuf<ByteBuffer> {
         }
     });
 
+    /**
+     *
+     * @param maxCapacity   1G
+     * @return
+     */
     static PooledUnsafeDirectByteBuf newInstance(int maxCapacity) {
+        // 先从线程缓存获取栈，从栈获取buf，如果不存在则将其创建并存储到cache中
         PooledUnsafeDirectByteBuf buf = RECYCLER.get();
+        // 重置buf的计数
         buf.reuse(maxCapacity);
         return buf;
     }
