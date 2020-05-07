@@ -17,8 +17,6 @@
 package io.netty.buffer;
 
 
-import static io.netty.util.internal.ObjectUtil.checkPositiveOrZero;
-
 import io.netty.buffer.PoolArena.SizeClass;
 import io.netty.util.internal.MathUtil;
 import io.netty.util.internal.ObjectPool;
@@ -31,6 +29,8 @@ import io.netty.util.internal.logging.InternalLoggerFactory;
 import java.nio.ByteBuffer;
 import java.util.Queue;
 import java.util.concurrent.atomic.AtomicBoolean;
+
+import static io.netty.util.internal.ObjectUtil.checkPositiveOrZero;
 
 /**
  * Acts a Thread cache for allocations. This implementation is moduled after
@@ -76,28 +76,38 @@ final class PoolThreadCache {
      * @param maxCachedBufferCapacity           32kb
      * @param freeSweepAllocationThreshold      8kb
      */
-    PoolThreadCache(PoolArena<byte[]> heapArena, PoolArena<ByteBuffer> directArena,
-                    int tinyCacheSize, int smallCacheSize, int normalCacheSize,
-                    int maxCachedBufferCapacity, int freeSweepAllocationThreshold) {
+    PoolThreadCache(PoolArena<byte[]> heapArena,
+                    PoolArena<ByteBuffer> directArena,
+                    int tinyCacheSize,
+                    int smallCacheSize,
+                    int normalCacheSize,
+                    int maxCachedBufferCapacity,
+                    int freeSweepAllocationThreshold) {
         checkPositiveOrZero(maxCachedBufferCapacity, "maxCachedBufferCapacity");
         this.freeSweepAllocationThreshold = freeSweepAllocationThreshold;
         this.heapArena = heapArena;
         this.directArena = directArena;
         if (directArena != null) {
-            // 队列为8M
+            //
             tinySubPageDirectCaches = createSubPageCaches(
-                    tinyCacheSize, PoolArena.numTinySubpagePools, SizeClass.Tiny);
+                    tinyCacheSize,                      // 512
+                    PoolArena.numTinySubpagePools,      // 32
+                    SizeClass.Tiny);
 
-            // 队列为16M
+            // 队列
             smallSubPageDirectCaches = createSubPageCaches(
-                    smallCacheSize, directArena.numSmallSubpagePools, SizeClass.Small);
+                    smallCacheSize,                     // 256
+                    directArena.numSmallSubpagePools,   // 9
+                    SizeClass.Small);
 
             // 13
             numShiftsNormalDirect = log2(directArena.pageSize);
 
-            // 队列为64M
+
             normalDirectCaches = createNormalCaches(
-                    normalCacheSize, maxCachedBufferCapacity, directArena);
+                    normalCacheSize,                    // 64
+                    maxCachedBufferCapacity,            // 13
+                    directArena);
 
             // 记录区域arean存在多少个线程cache
             directArena.numThreadCaches.getAndIncrement();
@@ -396,9 +406,9 @@ final class PoolThreadCache {
         private int allocations;
 
         MemoryRegionCache(int size, SizeClass sizeClass) {
-            // 如果Tiny，默认创建队列空间为8M
-            // 如果为Small，默认创建的队列空间为16M
-            // 如果为Normal，默认创建的队列空间为64M
+            // 如果Tiny            512个元素的queue
+            // 如果为Small         256个元素的queue
+            // 如果为Normal        64个元素的queue
             this.size = MathUtil.safeFindNextPositivePowerOfTwo(size);
 
             // 为queue填充数据

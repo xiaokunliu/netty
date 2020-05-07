@@ -87,7 +87,7 @@ abstract class PoolArena<T> implements PoolArenaMetric {
     /**
      *
      * @param parent             对应的内存分配器，默认为池化且堆外内存
-     * @param pageSize           页大小
+     * @param pageSize           页大小,8kb
      * @param maxOrder           偏移位数：11
      * @param pageShifts         页移个数：31 - log2 8 * 1024
      * @param chunkSize          chunk size大小： 16M
@@ -281,6 +281,10 @@ abstract class PoolArena<T> implements PoolArenaMetric {
         }
 
         // Add a new chunk.
+        // pageSize = 8kb
+        // maxOrder = 11
+        // pageShifts = 18
+        // chunkSize = 16M
         PoolChunk<T> c = newChunk(pageSize, maxOrder, pageShifts, chunkSize);
         boolean success = c.allocate(buf, reqCapacity, normCapacity);
         assert success;
@@ -302,6 +306,7 @@ abstract class PoolArena<T> implements PoolArenaMetric {
         allocationsHuge.increment();
     }
 
+    // 当byteBuf释放的时候会进行回收添加到对应的线程缓存池中
     void free(PoolChunk<T> chunk, ByteBuffer nioBuffer, long handle, int normCapacity, PoolThreadCache cache) {
         if (chunk.unpooled) {
             int size = chunk.chunkSize();
@@ -786,19 +791,25 @@ abstract class PoolArena<T> implements PoolArenaMetric {
 
         /**
          * 创建chunk
-         * @param pageSize
-         * @param maxOrder
-         * @param pageShifts
-         * @param chunkSize
+         * @param pageSize          8kb
+         * @param maxOrder          11
+         * @param pageShifts        18
+         * @param chunkSize         16M
          * @return
          */
         @Override
-        protected PoolChunk<ByteBuffer> newChunk(int pageSize, int maxOrder,
-                int pageShifts, int chunkSize) {
+        protected PoolChunk<ByteBuffer> newChunk(int pageSize,
+                                                 int maxOrder,
+                                                 int pageShifts,
+                                                 int chunkSize) {
             if (directMemoryCacheAlignment == 0) {
                 return new PoolChunk<ByteBuffer>(this,
-                        allocateDirect(chunkSize), pageSize, maxOrder,
-                        pageShifts, chunkSize, 0);
+                        allocateDirect(chunkSize),      // 申请16M的ByteBuf
+                        pageSize,
+                        maxOrder,
+                        pageShifts,
+                        chunkSize,
+                        0);
             }
             final ByteBuffer memory = allocateDirect(chunkSize
                     + directMemoryCacheAlignment);

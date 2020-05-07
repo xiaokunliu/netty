@@ -111,9 +111,16 @@ final class PoolChunk<T> implements PoolChunkMetric {
     final T memory;
     final boolean unpooled;
     final int offset;
+
+    // 完全二叉平衡树
+    // 存储树的深度，比如memoryMap[2^9] = ( 2^9 = 2^11 /  2^2) 2
     private final byte[] memoryMap;
+
+    // 表示可分配数据的树的深度 memoryMap[2^9] 表示分配当前的2^9byte所处的深度
     private final byte[] depthMap;
+
     private final PoolSubpage<T>[] subpages;
+
     /** Used to determine if the requested capacity is equal to or greater than pageSize. */
     private final int subpageOverflowMask;
     private final int pageSize;
@@ -143,13 +150,13 @@ final class PoolChunk<T> implements PoolChunkMetric {
 
     /**
      *
-     * @param arena
-     * @param memory
-     * @param pageSize
-     * @param maxOrder
-     * @param pageShifts
-     * @param chunkSize
-     * @param offset
+     * @param arena             区域PoolArena
+     * @param memory            16M的byteBuff
+     * @param pageSize          8kb
+     * @param maxOrder          11
+     * @param pageShifts        18
+     * @param chunkSize         16M
+     * @param offset            0
      */
     PoolChunk(PoolArena<T> arena, T memory, int pageSize, int maxOrder, int pageShifts, int chunkSize, int offset) {
         unpooled = false;
@@ -166,7 +173,7 @@ final class PoolChunk<T> implements PoolChunkMetric {
         freeBytes = chunkSize;
 
         assert maxOrder < 30 : "maxOrder should be < 30, but is: " + maxOrder;
-        maxSubpageAllocs = 1 << maxOrder;
+        maxSubpageAllocs = 1 << maxOrder;  // 2kb  2048
 
         // Generate the memory map.
         memoryMap = new byte[maxSubpageAllocs << 1];
@@ -182,8 +189,10 @@ final class PoolChunk<T> implements PoolChunkMetric {
             }
         }
 
-        // 2kb
+        // 2kb，完全二叉平衡树
         subpages = newSubpageArray(maxSubpageAllocs);
+
+        // 创建一个队列，缓存个数8个
         cachedNioBuffers = new ArrayDeque<ByteBuffer>(8);
     }
 
@@ -234,17 +243,24 @@ final class PoolChunk<T> implements PoolChunkMetric {
     }
 
     boolean allocate(PooledByteBuf<T> buf, int reqCapacity, int normCapacity) {
+
+        // 创建一个容量大小为normCapacity的subpage
         final long handle;
         if ((normCapacity & subpageOverflowMask) != 0) { // >= pageSize
             handle =  allocateRun(normCapacity);
         } else {
+            // < 8kb
             handle = allocateSubpage(normCapacity);
         }
 
         if (handle < 0) {
             return false;
         }
+
+        // 从缓存队列获取nioBuffer
         ByteBuffer nioBuffer = cachedNioBuffers != null ? cachedNioBuffers.pollLast() : null;
+
+        // 将实际数据存储在subpage
         initBuf(buf, nioBuffer, handle, reqCapacity);
         return true;
     }
@@ -366,6 +382,7 @@ final class PoolChunk<T> implements PoolChunkMetric {
             int subpageIdx = subpageIdx(id);
             PoolSubpage<T> subpage = subpages[subpageIdx];
             if (subpage == null) {
+                // 创建一个容量大小为normCapacity的subpage来存储数据
                 subpage = new PoolSubpage<T>(head, this, id, runOffset(id), pageSize, normCapacity);
                 subpages[subpageIdx] = subpage;
             } else {
@@ -410,9 +427,17 @@ final class PoolChunk<T> implements PoolChunkMetric {
         }
     }
 
+    /**
+     * @param buf         netty的bytebuf
+     * @param nioBuffer   nioBuf
+     * @param handle      subpage的位图
+     * @param reqCapacity 实际容量
+     */
     void initBuf(PooledByteBuf<T> buf, ByteBuffer nioBuffer, long handle, int reqCapacity) {
         int memoryMapIdx = memoryMapIdx(handle);
         int bitmapIdx = bitmapIdx(handle);
+
+        // 判断是存储在subpage还是非subpage
         if (bitmapIdx == 0) {
             byte val = value(memoryMapIdx);
             assert val == unusable : String.valueOf(val);
@@ -433,14 +458,15 @@ final class PoolChunk<T> implements PoolChunkMetric {
 
         int memoryMapIdx = memoryMapIdx(handle);
 
-        //
+        // 获取对应的subpage
         PoolSubpage<T> subpage = subpages[subpageIdx(memoryMapIdx)];
         assert subpage.doNotDestroy;
         assert reqCapacity <= subpage.elemSize;
 
+        // 初始化数据并存储缓存引用，也就是后续可以通过缓存获取到subpage数据
         buf.init(
-            this, nioBuffer, handle,
-            runOffset(memoryMapIdx) + (bitmapIdx & 0x3FFFFFFF) * subpage.elemSize + offset,
+                this, nioBuffer, handle,
+                runOffset(memoryMapIdx) + (bitmapIdx & 0x3FFFFFFF) * subpage.elemSize + offset,
                 reqCapacity, subpage.elemSize, arena.parent.threadCache());
     }
 
