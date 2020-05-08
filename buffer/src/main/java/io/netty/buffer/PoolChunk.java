@@ -113,10 +113,10 @@ final class PoolChunk<T> implements PoolChunkMetric {
     final int offset;
 
     // 完全二叉平衡树
-    // 存储树的深度，比如memoryMap[2^9] = ( 2^9 = 2^11 /  2^2) 2
+    // 存储树的深度，比如memoryMap[2^9] = ( 2^9 = 2^11 /  2^2) 2，表示当前size应当分配在对应容量大小的深度
     private final byte[] memoryMap;
 
-    // 表示可分配数据的树的深度 memoryMap[2^9] 表示分配当前的2^9byte所处的深度
+    // 表示可分配数据的树的深度 memoryMap[2^9]表示分配当前的2^9byte所处的深度的从左往右开始的第一个节点可以用于分配
     private final byte[] depthMap;
 
     private final PoolSubpage<T>[] subpages;
@@ -176,8 +176,8 @@ final class PoolChunk<T> implements PoolChunkMetric {
         maxSubpageAllocs = 1 << maxOrder;  // 2kb  2048
 
         // Generate the memory map.
-        memoryMap = new byte[maxSubpageAllocs << 1];
-        depthMap = new byte[memoryMap.length];
+        memoryMap = new byte[maxSubpageAllocs << 1];  // 4096
+        depthMap = new byte[memoryMap.length];        // 4096
         int memoryMapIndex = 1;
         for (int d = 0; d <= maxOrder; ++ d) { // move down the tree one level at a time
             int depth = 1 << d;
@@ -320,10 +320,13 @@ final class PoolChunk<T> implements PoolChunkMetric {
     private int allocateNode(int d) {
         int id = 1;
         int initial = - (1 << d); // has last d bits = 0 and rest all = 1
+
+        // 获取id的深度
         byte val = value(id);
         if (val > d) { // unusable
             return -1;
         }
+
         while (val < d || (id & initial) == 0) { // id & initial == 1 << d for all ids at depth d, for < d it is 0
             id <<= 1;
             val = value(id);
@@ -347,11 +350,15 @@ final class PoolChunk<T> implements PoolChunkMetric {
      * @return index in memoryMap
      */
     private long allocateRun(int normCapacity) {
+        // 计算深度，
+        // 比如当前normCapacity： 1M  11 - (20 - 18)
         int d = maxOrder - (log2(normCapacity) - pageShifts);
         int id = allocateNode(d);
         if (id < 0) {
             return id;
         }
+
+        // 分配数据当前chunk剩余的容量
         freeBytes -= runLength(id);
         return id;
     }

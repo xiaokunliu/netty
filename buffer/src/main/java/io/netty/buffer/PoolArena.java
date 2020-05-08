@@ -131,6 +131,7 @@ abstract class PoolArena<T> implements PoolArenaMetric {
         q100 = new PoolChunkList<T>(this, null, 100, Integer.MAX_VALUE, chunkSize);
 
         // 75 - 100
+        //
         q075 = new PoolChunkList<T>(this, q100, 75, 100, chunkSize);
 
         // 50 -100
@@ -247,6 +248,8 @@ abstract class PoolArena<T> implements PoolArenaMetric {
                     return;
                 }
             }
+
+            // 分配 pageSize < 8kb
             synchronized (this) {
                 allocateNormal(buf, reqCapacity, normCapacity);
             }
@@ -262,6 +265,7 @@ abstract class PoolArena<T> implements PoolArenaMetric {
                 return;
             }
             synchronized (this) {
+                // 分配 <= 16M的数据
                 allocateNormal(buf, reqCapacity, normCapacity);
                 ++allocationsNormal;
             }
@@ -274,8 +278,11 @@ abstract class PoolArena<T> implements PoolArenaMetric {
 
     // Method must be called inside synchronized(this) { ... } block
     private void allocateNormal(PooledByteBuf<T> buf, int reqCapacity, int normCapacity) {
-        if (q050.allocate(buf, reqCapacity, normCapacity) || q025.allocate(buf, reqCapacity, normCapacity) ||
-            q000.allocate(buf, reqCapacity, normCapacity) || qInit.allocate(buf, reqCapacity, normCapacity) ||
+        // <= 16M
+        if (q050.allocate(buf, reqCapacity, normCapacity) ||
+                q025.allocate(buf, reqCapacity, normCapacity) ||
+                q000.allocate(buf, reqCapacity, normCapacity) ||
+                qInit.allocate(buf, reqCapacity, normCapacity) ||
             q075.allocate(buf, reqCapacity, normCapacity)) {
             return;
         }

@@ -18,14 +18,14 @@ package io.netty.buffer;
 
 import io.netty.util.internal.StringUtil;
 
+import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 
-import static java.lang.Math.*;
-
-import java.nio.ByteBuffer;
+import static java.lang.Math.max;
+import static java.lang.Math.min;
 
 final class PoolChunkList<T> implements PoolChunkListMetric {
     private static final Iterator<PoolChunkMetric> EMPTY_METRICS = Collections.<PoolChunkMetric>emptyList().iterator();
@@ -50,6 +50,7 @@ final class PoolChunkList<T> implements PoolChunkListMetric {
         this.maxUsage = maxUsage;
 
         // 获取最大的容量，根据使用量来分配比率
+        // maxCapacity <= 16M
         maxCapacity = calculateMaxCapacity(minUsage, chunkSize);
     }
 
@@ -79,6 +80,7 @@ final class PoolChunkList<T> implements PoolChunkListMetric {
     }
 
     boolean allocate(PooledByteBuf<T> buf, int reqCapacity, int normCapacity) {
+        // 计算存储的容量
         if (normCapacity > maxCapacity) {
             // Either this PoolChunkList is empty or the requested capacity is larger then the capacity which can
             // be handled by the PoolChunks that are contained in this PoolChunkList.
